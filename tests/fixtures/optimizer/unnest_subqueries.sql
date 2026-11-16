@@ -527,3 +527,28 @@ SELECT 1 + _u_0.n AS n FROM x CROSS JOIN (SELECT COUNT(*) AS n FROM y) AS _u_0 W
 # execute: true
 SELECT * FROM x WHERE EXISTS (SELECT y.b AS b FROM y WHERE y.b = x.a AND x.b IS NULL);
 SELECT * FROM x WHERE EXISTS(SELECT y.b AS b FROM y WHERE y.b = x.a AND x.b IS NULL);
+
+# title: Preserve a correlated IN subquery compared with FALSE, a missing match is FALSE and not NULL
+# execute: true
+SELECT x.a FROM x WHERE (x.a IN (SELECT y.c AS c FROM y WHERE y.b = x.b)) = FALSE ORDER BY x.a;
+SELECT x.a FROM x WHERE (x.a IN (SELECT y.c AS c FROM y WHERE y.b = x.b)) = FALSE ORDER BY x.a;
+
+# title: Preserve a correlated IN subquery projected as a value
+# execute: true
+SELECT x.a, x.a IN (SELECT y.c AS c FROM y WHERE y.b = x.b) AS r FROM x ORDER BY x.a;
+SELECT x.a, x.a IN (SELECT y.c AS c FROM y WHERE y.b = x.b) AS r FROM x ORDER BY x.a;
+
+# title: Preserve a correlated IN subquery below a negated conjunction
+# execute: true
+SELECT x.a FROM x WHERE NOT (x.a IN (SELECT y.c AS c FROM y WHERE y.b = x.b) AND x.a > 0) ORDER BY x.a;
+SELECT x.a FROM x WHERE NOT (x.a IN (SELECT y.c AS c FROM y WHERE y.b = x.b) AND x.a > 0) ORDER BY x.a;
+
+# title: Preserve a correlated = ANY subquery compared with FALSE
+# execute: true
+SELECT x.a FROM x WHERE (x.a = ANY (SELECT y.c AS c FROM y WHERE y.b = x.b)) = FALSE ORDER BY x.a;
+SELECT x.a FROM x WHERE (x.a = ANY (SELECT y.c AS c FROM y WHERE y.b = x.b)) = FALSE ORDER BY x.a;
+
+# title: A correlated IN subquery in a WHERE disjunction is still unnested
+# execute: true
+SELECT x.a FROM x WHERE (x.a IN (SELECT y.c AS c FROM y WHERE y.b = x.b)) OR x.a = 1 ORDER BY x.a;
+SELECT x.a FROM x LEFT JOIN (SELECT ARRAY_AGG(y.c) AS c, y.b AS _u_1 FROM y WHERE TRUE GROUP BY y.b) AS _u_0 ON _u_0._u_1 = x.b WHERE (ARRAY_ANY(_u_0.c, _x -> _x = x.a)) OR x.a = 1 ORDER BY x.a;

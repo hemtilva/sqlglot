@@ -393,7 +393,11 @@ def decorrelate(select, parent_select, external_columns, next_alias_name):
     if parent_predicate is None and not is_subquery_projection:
         return
 
-    if isinstance(parent_predicate, exp.In) and _is_negated(parent_predicate):
+    # A missing LEFT JOIN match turns IN / = ANY into NULL instead of FALSE, which is only
+    # equivalent when the predicate filters rows directly through AND / OR
+    if isinstance(parent_predicate, (exp.In, exp.Any)) and not _is_filter_conjunct(
+        parent_predicate.parent if isinstance(parent_predicate, exp.Any) else parent_predicate
+    ):
         return
 
     # if the value of the subquery is not an agg or a key, we need to collect it into an array
@@ -540,11 +544,12 @@ def decorrelate(select, parent_select, external_columns, next_alias_name):
         parent_select.set("joins", joins.pop(), index=on_clause_join_index, overwrite=False)
 
 
-def _is_negated(expression: exp.Expression) -> bool:
-    parent = expression.parent
-    while isinstance(parent, exp.Paren):
-        parent = parent.parent
-    return isinstance(parent, exp.Not)
+def _is_filter_conjunct(expression: exp.Expr) -> bool:
+    # UNKNOWN and FALSE are only interchangeable if no operator other than AND / OR looks at them
+    ancestor = expression.parent
+    while isinstance(ancestor, (exp.And, exp.Or, exp.Paren)):
+        ancestor = ancestor.parent
+    return isinstance(ancestor, (exp.Where, exp.Having, exp.Join))
 
 
 def _replace(expression: exp.Expr, condition: exp.ExpOrStr) -> exp.Expr:
